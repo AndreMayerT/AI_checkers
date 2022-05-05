@@ -29,23 +29,42 @@ priorMoves = []
 def get_actions_value(current_position, grid, type):
     positions = generatePotentialMovesAI(current_position, grid, type)
     actions = {}
+    pieces = []
+    for i in range(8):
+        for j in range(8):
+            if grid[i][j].piece:
+                if grid[i][j].piece.team == 'G':
+                    pieces.append((i, j))
+
     for position in positions:
         if not type:
             if abs(position[0] - current_position[0]) > 1 or abs(position[1] - current_position[1]) > 1:
                 actions[position] = 1
             elif position[0] == 7:
                 actions[position] = 1
+
             elif abs(position[0] - current_position[0]) > 1 or abs(position[1] - current_position[1]) > 1 and \
                     position[0] == 7:
                 actions[position] = 2
             else:
                 actions[position] = 0
+            for piece in pieces:
+                if abs(position[0] - piece[0]) == 1 and abs(position[1] - piece[1]) == 1:
+                    actions[position] = -1
+                    if abs(position[0] - current_position[0]) > 1 or abs(position[1] - current_position[1]) > 1:
+                        actions[position] = 1
+                    if position[0] == 7:
+                        actions[position] = 1
         else:
             if abs(position[0] - current_position[0]) > 1 or abs(position[1] - current_position[1]) > 1:
                 actions[position] = 1
             else:
                 actions[position] = 0
-
+            for piece in pieces:
+                if abs(position[0] - piece[0]) == 1 and abs(position[1] - piece[1]) == 1:
+                    actions[position] = -1
+                    if abs(position[0] - current_position[0]) > 1 or abs(position[1] - current_position[1]) > 1:
+                        actions[position] = 1
     return actions
 
 
@@ -81,6 +100,7 @@ def action_search(grid):
     max_value = 0
     best_sequence = []
     default_moves = []
+    safe_moves = []
     for i in range(8):
         for j in range(8):
             if grid[i][j].piece:
@@ -91,9 +111,12 @@ def action_search(grid):
         piece_type = grid[piece[0]][piece[1]].piece.type
         default_action = get_actions_value(piece, grid, piece_type)
         pos = list(default_action.keys())
+        values = list(default_action.values())
         piece_value, sequence = alpha_beta(piece_value, [piece], grid, piece_type)
         if len(default_action) > 0:
             default_moves.append([piece, pos[0]])
+            if values[0] > -1:
+                safe_moves.append([piece, pos[0]])
         if piece_value > max_value:
             best_sequence = sequence
             max_value = piece_value
@@ -104,11 +127,14 @@ def action_search(grid):
         print("### CONGRATULATIONS ###")
         quit()
 
-    random_choice = random.randint(0, len(default_moves) - 1)
+    random_choice_default = random.randint(0, len(default_moves) - 1)
     if best_sequence:
         return best_sequence
+    elif len(safe_moves) > 0:
+        random_choice_safe = random.randint(0, len(safe_moves) - 1)
+        return safe_moves[random_choice_safe]
     else:
-        return default_moves[random_choice]
+        return default_moves[random_choice_default]
 
 
 class Node:
