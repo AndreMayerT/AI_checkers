@@ -24,7 +24,7 @@ WIN = pygame.display.set_mode((WIDTH, WIDTH))
 pygame.display.set_caption('Checkers')
 
 priorMoves = []
-
+possible_jump = False
 
 def get_actions_value(current_position, grid, type):
     positions = generatePotentialMovesAI(current_position, grid, type)
@@ -191,7 +191,7 @@ class Piece:
     def __init__(self, team):
         self.team = team
         self.image = RED if self.team == 'R' else GREEN
-        self.type = None
+        self.type = 'KING'
 
     def draw(self, x, y):
         WIN.blit(self.image, (x, y))
@@ -226,60 +226,61 @@ def opposite(team):
 
 
 def generatePotentialMoves(nodePosition, grid):
-    checker = lambda x, y: x + y >= 0 and x + y < 10
     positions = []
     column, row = nodePosition
+    global possible_jump
     if grid[column][row].piece:
-        vectors = [[1, -1], [1, 1]] if grid[column][row].piece.team == "R" else [[-1, -1], [-1, 1]]
         if grid[column][row].piece.type == 'KING':
-            count = 1
             vectors = [[1, -1], [1, 1], [-1, -1], [-1, 1]]
-            for i in range(column, 9):
-                count += 1
-                for j in range(row, 9):
-                    vectors.append([count, -count])
-                    vectors.append([count, count])
-                    vectors.append([-count, -count])
-                    vectors.append([-count, count])
-            for vector in vectors:
-                columnVector, rowVector = vector
-                if checker(columnVector, column) and checker(rowVector, row):
-                    if not grid[column + columnVector][row + rowVector].piece:
-                        positions.append((column + columnVector, row + rowVector))
-                    elif grid[column + columnVector][row + rowVector].piece and \
-                            grid[column + columnVector][row + rowVector].piece.team == opposite(
-                        grid[column][row].piece.team):
-                        if columnVector < 0 and rowVector > 0:
-                            if checker((columnVector - 1), column) and checker((rowVector + 1), row) \
-                                    and not grid[(columnVector - 1) + column][(rowVector + 1) + row].piece:
-                                positions.append((columnVector - 1 + column, rowVector + 1 + row))
-                        if columnVector > 0 and rowVector < 0:
-                            if checker((columnVector + 1), column) and checker((rowVector - 1), row) \
-                                    and not grid[(columnVector + 1) + column][(rowVector - 1) + row].piece:
-                                positions.append((columnVector + 1 + column, rowVector - 1 + row))
-                        if columnVector > 0 and rowVector > 0:
-                            if checker((columnVector + 1), column) and checker((rowVector + 1), row) \
-                                    and not grid[(columnVector + 1) + column][(rowVector + 1) + row].piece:
-                                positions.append((columnVector + 1 + column, rowVector + 1 + row))
-                        if columnVector < 0 and rowVector < 0:
-                            if checker((columnVector - 1), column) and checker((rowVector - 1), row) \
-                                    and not grid[(columnVector - 1) + column][(rowVector - 1) + row].piece:
-                                positions.append((columnVector - 1 + column, rowVector - 1 + row))
+            for i in range(len(vectors)):
+                count = 0
+                diagonal = nodePosition
+                column_direction, row_direction = vectors[i]
+                for square in range(10):
+                    diagonal = (diagonal[0] + column_direction, diagonal[1] + row_direction)
+                    if diagonal[0] > 9 or diagonal[0] < 0 or diagonal[1] > 9 or diagonal[1] < 0:
+                        break
 
+                    if grid[diagonal[0]][diagonal[1]].piece:
+                        if grid[diagonal[0]][diagonal[1]].piece.team == 'G':
+                            break
+                        if grid[diagonal[0]][diagonal[1]].piece.team == 'R':
+                            if count == 1:
+                                break
+                            else:
+                                count = 1
+                    if not grid[diagonal[0]][diagonal[1]].piece:
+                        positions.append(diagonal)
+                        count = 0
         else:
-            for vector in vectors:
-                columnVector, rowVector = vector
-                if checker(columnVector, column) and checker(rowVector, row):
-                    # grid[(column+columnVector)][(row+rowVector)].colour=ORANGE
-                    if not grid[(column + columnVector)][(row + rowVector)].piece:
-                        positions.append((column + columnVector, row + rowVector))
-                    elif grid[column + columnVector][row + rowVector].piece and \
-                            grid[column + columnVector][row + rowVector].piece.team == opposite(
-                        grid[column][row].piece.team):
-                        if checker((2 * columnVector), column) and checker((2 * rowVector), row) \
-                                and not grid[(2 * columnVector) + column][(2 * rowVector) + row].piece:
-                            positions.append((2 * columnVector + column, 2 * rowVector + row))
-    # print(positions[0][0])
+            movement_vectors = [[-1, -1], [-1, 1]]
+            jump_vectors = [[1, -1], [1, 1], [-1, -1], [-1, 1]]
+
+            for vector in jump_vectors:
+                diagonal = (nodePosition[0] + vector[0], nodePosition[1] + vector[1])
+                if diagonal[0] > 9 or diagonal[0] < 0 or diagonal[1] > 9 or diagonal[1] < 0:
+                    continue
+
+                if grid[diagonal[0]][diagonal[1]].piece and grid[diagonal[0]][diagonal[1]].piece.team == 'R':
+                    diagonal = (diagonal[0] + vector[0], diagonal[1] + vector[1])
+                    if diagonal[0] > 9 or diagonal[0] < 0 or diagonal[1] > 9 or diagonal[1] < 0:
+                        continue
+
+                    if not grid[diagonal[0]][diagonal[1]].piece:
+                        possible_jump = True
+                        positions.append(diagonal)
+
+            if not possible_jump:
+                for vector in movement_vectors:
+                    diagonal = (nodePosition[0] + vector[0], nodePosition[1] + vector[1])
+                    if diagonal[0] > 9 or diagonal[0] < 0 or diagonal[1] > 9 or diagonal[1] < 0:
+                        continue
+
+                    if grid[diagonal[0]][diagonal[1]].piece:
+                        continue
+                    else:
+                        positions.append(diagonal)
+
     return positions
 
 
@@ -323,15 +324,41 @@ def move(grid, piecePosition, newPosition):
     resetColours(grid, piecePosition)
     newColumn, newRow = newPosition
     oldColumn, oldRow = piecePosition
+    diagonal = piecePosition
+    column_direction = 0
+    row_direction = 0
 
     piece = grid[oldColumn][oldRow].piece
     grid[newColumn][newRow].piece = piece
     grid[oldColumn][oldRow].piece = None
 
-    if newColumn == 9 and grid[newColumn][newRow].piece.team == 'R':
-        grid[newColumn][newRow].piece.type = 'KING'
-        grid[newColumn][newRow].piece.image = REDKING
-    if newColumn == 0 and grid[newColumn][newRow].piece.team == 'G':
+    if grid[newColumn][newRow].piece.type == 'KING':
+        if oldColumn - newColumn > 0:
+            # pra cima e direita
+            if oldRow - newRow < 0:
+                column_direction = -1
+                row_direction = 1
+            # pra cima e esquerda
+            if oldRow - newRow > 0:
+                column_direction = -1
+                row_direction = -1
+        else:
+            # pra baixo e direita
+            if oldRow - newRow < 0:
+                column_direction = 1
+                row_direction = 1
+            # pra baixo e esquerda
+            if oldRow - newRow > 0:
+                column_direction = 1
+                row_direction = -1
+
+        for i in range(0, abs(oldColumn - newColumn)):
+            diagonal = (diagonal[0] + column_direction, diagonal[1] + row_direction)
+            print(diagonal)
+            if grid[diagonal[0]][diagonal[1]].piece and grid[diagonal[0]][diagonal[1]].piece.team == 'R':
+                grid[diagonal[0]][diagonal[1]].piece = None
+    print('end of move')
+    if newColumn == 0:
         grid[newColumn][newRow].piece.type = 'KING'
         grid[newColumn][newRow].piece.image = GREENKING
     if abs(newColumn - oldColumn) == 2 or abs(newRow - oldRow) == 2:
@@ -383,6 +410,7 @@ def check_end_game(grid):
 
 
 def main(WIDTH, ROWS):
+    global possible_jump
     grid = make_grid(ROWS, WIDTH)
     highlightedPiece = None
     currMove = 'G'
@@ -433,8 +461,12 @@ def main(WIDTH, ROWS):
                         if grid[ClickedPositionColumn][ClickedPositionRow].piece:
                             if currMove == grid[ClickedPositionColumn][ClickedPositionRow].piece.team:
                                 highlightedPiece = highlight(clickedNode, grid, highlightedPiece)
+                                last_move = 'G'
 
             update_display(WIN, grid, ROWS, WIDTH)
+
+        if last_move != currMove:
+            possible_jump = False
 
 
 main(WIDTH, ROWS)
