@@ -25,6 +25,8 @@ pygame.display.set_caption('Checkers')
 
 priorMoves = []
 possible_jump = False
+jump_moves = []
+
 
 def get_actions_value(current_position, grid, type):
     positions = generatePotentialMovesAI(current_position, grid, type)
@@ -77,8 +79,6 @@ def alpha_beta(piece_value, sequence, grid, type):
         return piece_value, sequence
     if len(positions) < 1:
         return piece_value, sequence
-    if type == 'KING':
-        print(positions)
     if type == 'KING' and len(positions) < 2:
         return piece_value, sequence
 
@@ -101,8 +101,8 @@ def action_search(grid):
     best_sequence = []
     default_moves = []
     safe_moves = []
-    for i in range(8):
-        for j in range(8):
+    for i in range(10):
+        for j in range(10):
             if grid[i][j].piece:
                 if grid[i][j].piece.team == 'R':
                     pieces.append((i, j))
@@ -191,7 +191,7 @@ class Piece:
     def __init__(self, team):
         self.team = team
         self.image = RED if self.team == 'R' else GREEN
-        self.type = 'KING'
+        self.type = None
 
     def draw(self, x, y):
         WIN.blit(self.image, (x, y))
@@ -227,8 +227,10 @@ def opposite(team):
 
 def generatePotentialMoves(nodePosition, grid):
     positions = []
+    global jump_moves
     column, row = nodePosition
     global possible_jump
+
     if grid[column][row].piece:
         if grid[column][row].piece.type == 'KING':
             vectors = [[1, -1], [1, 1], [-1, -1], [-1, 1]]
@@ -250,7 +252,43 @@ def generatePotentialMoves(nodePosition, grid):
                             else:
                                 count = 1
                     if not grid[diagonal[0]][diagonal[1]].piece:
-                        positions.append(diagonal)
+                        #positions.append(diagonal)
+                        if count == 1:
+                            possible_jump = True
+                        count = 0
+
+            for i in range(len(vectors)):
+                count = 0
+                diagonal = nodePosition
+                column_direction, row_direction = vectors[i]
+                for square in range(10):
+                    diagonal = (diagonal[0] + column_direction, diagonal[1] + row_direction)
+                    if diagonal[0] > 9 or diagonal[0] < 0 or diagonal[1] > 9 or diagonal[1] < 0:
+                        break
+
+                    if grid[diagonal[0]][diagonal[1]].piece:
+                        if grid[diagonal[0]][diagonal[1]].piece.team == 'G':
+                            break
+                        if grid[diagonal[0]][diagonal[1]].piece.team == 'R':
+                            if count == 1:
+                                break
+                            else:
+                                count = 1
+                    if not grid[diagonal[0]][diagonal[1]].piece:
+                        if not possible_jump:
+                            positions.append(diagonal)
+                        elif count == 1:
+                            positions.append(diagonal)
+                            jump_moves.append(diagonal)
+                            for square in range(10):
+                                diagonal = (diagonal[0] + column_direction, diagonal[1] + row_direction)
+                                if diagonal[0] > 9 or diagonal[0] < 0 or diagonal[1] > 9 or diagonal[1] < 0:
+                                    break
+                                if not grid[diagonal[0]][diagonal[1]].piece:
+                                    positions.append(diagonal)
+                                else:
+                                    break
+                            break
                         count = 0
         else:
             movement_vectors = [[-1, -1], [-1, 1]]
@@ -267,8 +305,8 @@ def generatePotentialMoves(nodePosition, grid):
                         continue
 
                     if not grid[diagonal[0]][diagonal[1]].piece:
-                        possible_jump = True
                         positions.append(diagonal)
+                        jump_moves.append(diagonal)
 
             if not possible_jump:
                 for vector in movement_vectors:
@@ -280,7 +318,7 @@ def generatePotentialMoves(nodePosition, grid):
                         continue
                     else:
                         positions.append(diagonal)
-
+    print(positions)
     return positions
 
 
@@ -298,13 +336,11 @@ def generatePotentialMovesAI(nodePosition, grid, type):
         if checker(columnVector, column) and checker(rowVector, row):
             # grid[(column+columnVector)][(row+rowVector)].colour=ORANGE
             if not grid[(column + columnVector)][(row + rowVector)].piece:
-                print(column + columnVector, row + rowVector)
                 positions.append((column + columnVector, row + rowVector))
             elif grid[column + columnVector][row + rowVector].piece and \
                     grid[column + columnVector][row + rowVector].piece.team == 'G':
                 if checker((2 * columnVector), column) and checker((2 * rowVector), row) \
                         and not grid[(2 * columnVector) + column][(2 * rowVector) + row].piece:
-                    print(2 * columnVector + column, 2 * rowVector + row)
                     positions.append((2 * columnVector + column, 2 * rowVector + row))
                     break
     # print(positions[0][0])
@@ -321,6 +357,7 @@ def highlight(ClickedNode, Grid, OldHighlight):
 
 
 def move(grid, piecePosition, newPosition):
+    global possible_jump
     resetColours(grid, piecePosition)
     newColumn, newRow = newPosition
     oldColumn, oldRow = piecePosition
@@ -354,10 +391,12 @@ def move(grid, piecePosition, newPosition):
 
         for i in range(0, abs(oldColumn - newColumn)):
             diagonal = (diagonal[0] + column_direction, diagonal[1] + row_direction)
-            print(diagonal)
             if grid[diagonal[0]][diagonal[1]].piece and grid[diagonal[0]][diagonal[1]].piece.team == 'R':
                 grid[diagonal[0]][diagonal[1]].piece = None
-    print('end of move')
+        if possible_jump:
+            return 'G'
+        else:
+            return 'R'
     if newColumn == 0:
         grid[newColumn][newRow].piece.type = 'KING'
         grid[newColumn][newRow].piece.image = GREENKING
@@ -391,8 +430,8 @@ def moveAI(grid, piecePosition, newPosition):
 def check_end_game(grid):
     red_pieces = 0
     green_pieces = 0
-    for i in range(8):
-        for j in range(8):
+    for i in range(10):
+        for j in range(10):
             if grid[i][j].piece:
                 if grid[i][j].piece.team == 'R':
                     red_pieces += 1
@@ -409,8 +448,56 @@ def check_end_game(grid):
         quit()
 
 
+def check_available_moves(grid):
+    positions = []
+    global possible_jump
+    for i in range(10):
+        for j in range(10):
+            if grid[i][j].piece:
+                if grid[i][j].piece.team == 'G':
+                    moves = generatePotentialMoves((i, j), grid)
+                    if moves:
+                        positions.append(moves)
+
+    if len(positions) == 0:
+        team = 'R'
+    else:
+        team = 'G'
+    return team
+
+def check_jump_moves(grid):
+    global possible_jump
+    global jump_moves
+    for i in range(10):
+        for j in range(10):
+            if grid[i][j].piece:
+                if grid[i][j].piece.team == 'G':
+                    moves = generatePotentialMoves((i, j), grid)
+
+    if jump_moves:
+        possible_jump = True
+        jump_moves = []
+        curr_move = 'G'
+    else:
+        curr_move = 'R'
+
+    print(curr_move)
+    #return curr_move
+
+
+def count_pieces(grid, team):
+    pieces = 0
+    for i in range(10):
+        for j in range(10):
+            if grid[i][j].piece:
+                if grid[i][j].piece.team == team:
+                    pieces += 1
+    return pieces
+
+
 def main(WIDTH, ROWS):
     global possible_jump
+    global jump_moves
     grid = make_grid(ROWS, WIDTH)
     highlightedPiece = None
     currMove = 'G'
@@ -436,6 +523,9 @@ def main(WIDTH, ROWS):
 
             update_display(WIN, grid, ROWS, WIDTH)
         else:
+            if last_move == 'R':
+                check_jump_moves(grid)
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     print('EXIT SUCCESSFUL')
@@ -453,8 +543,26 @@ def main(WIDTH, ROWS):
                             pieceColumn, pieceRow = highlightedPiece
                         if currMove == grid[pieceColumn][pieceRow].piece.team:
                             resetColours(grid, highlightedPiece)
+                            red_pieces_before = count_pieces(grid, 'R')
                             currMove = move(grid, highlightedPiece, clickedNode)
-                            last_move = 'G'
+                            red_pieces_after = count_pieces(grid, 'R')
+                            if red_pieces_after < red_pieces_before:
+                                jump_moves = []
+                                m = generatePotentialMoves(clickedNode, grid)
+                                if jump_moves:
+                                    currMove = 'G'
+                                    jump_moves = set(jump_moves)
+                                    jump_moves = list(jump_moves)
+                                    highlightedPiece = highlight(clickedNode, grid, highlightedPiece)
+                                    for i in range(len(jump_moves)):
+                                        Column, Row = jump_moves[i]
+                                        grid[Column][Row].colour = BLUE
+                                else:
+                                    currMove = 'R'
+                                last_move = 'G'
+                            else:
+                                currMove = 'R'
+
                     elif highlightedPiece == clickedNode:
                         pass
                     else:
@@ -462,9 +570,11 @@ def main(WIDTH, ROWS):
                             if currMove == grid[ClickedPositionColumn][ClickedPositionRow].piece.team:
                                 highlightedPiece = highlight(clickedNode, grid, highlightedPiece)
                                 last_move = 'G'
-
+            """if currMove == last_move:
+                currMove = check_available_moves(grid, currMove)"""
             update_display(WIN, grid, ROWS, WIDTH)
-
+        #print(f'curr Move: {currMove}')
+        #print(f'last_move: {last_move}')
         if last_move != currMove:
             possible_jump = False
 
