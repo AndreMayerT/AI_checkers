@@ -28,6 +28,7 @@ possible_jump = False
 jump_moves = []
 jump_moves_AI = []
 
+
 def get_actions_value(current_position, grid, type):
     global checkers_matrix
     global jump_moves_AI
@@ -75,7 +76,6 @@ def get_actions_value(current_position, grid, type):
 
 
 def alpha_beta(piece_value, sequence, grid, type):
-
     new_actions = get_actions_value(sequence[-1], grid, type)
 
     positions = list(new_actions.keys())
@@ -105,7 +105,6 @@ def alpha_beta(piece_value, sequence, grid, type):
 
 
 def action_search(grid):
-
     pieces = []
     piece_value = 0
     max_value = 0
@@ -202,7 +201,10 @@ class Piece:
     def __init__(self, team):
         self.team = team
         self.image = RED if self.team == 'R' else GREEN
-        self.type = 'NORMAL'
+        if self.team == 'R':
+            self.type = 'KING'
+        else:
+            self.type = 'NORMAL'
 
     def draw(self, x, y):
         WIN.blit(self.image, (x, y))
@@ -643,18 +645,28 @@ def main(WIDTH, ROWS):
                     print(f'Turn {count}')
                     currMove = 'G'
             else:
-                green_pieces_before = count_pieces(grid, 'G')
-                if len(AI_actions) > 1:
-                    currMove = moveAI(grid, AI_actions[0], AI_actions[1], last_move)
-                    jump_moves_AI = []
-                    del AI_actions[0]
-                    last_move = 'R'
-                    currMove = 'R'
+                last_move = 'R'
+
+                current_piece = AI_actions[0]
+                piece_type = grid[current_piece[0]][current_piece[1]].piece.type
+                piece_value, AI_actions = alpha_beta(0, [current_piece], grid, piece_type)
+                if piece_type == 'KING':
+                    if piece_value > 0:
+                        currMove = moveAI(grid, AI_actions[0], AI_actions[1], last_move)
+                        del AI_actions[0]
+                        currMove = 'R'
+                    else:
+                        currMove = 'G'
                 else:
-                    last_move = 'R'
-                    currMove = 'G'
-                    count += 1
-                    print(f'Turn {count}')
+                    if len(AI_actions) > 1:
+                        currMove = moveAI(grid, AI_actions[0], AI_actions[1], last_move)
+                        jump_moves_AI = []
+                        del AI_actions[0]
+                        currMove = 'R'
+                    else:
+                        currMove = 'G'
+                        count += 1
+                        print(f'Turn {count}')
 
             update_display(WIN, grid, ROWS, WIDTH)
         else:
